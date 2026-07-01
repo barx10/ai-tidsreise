@@ -110,12 +110,17 @@ class AI_Tidsreise_Metabox {
 					'success'             => __( 'Refleksjon generert. Husk å lagre.', 'ai-tidsreise' ),
 					'error'               => __( 'Noe gikk galt under generering.', 'ai-tidsreise' ),
 					'statusGenerert'      => __( 'Generert', 'ai-tidsreise' ),
+					'statusIkkeGenerert'  => __( 'Ikke generert', 'ai-tidsreise' ),
 					'generatingNaesteId'  => __( 'Genererer idé …', 'ai-tidsreise' ),
 					'successNaesteId'     => __( 'Idé generert. Husk å lagre.', 'ai-tidsreise' ),
 					'errorNaesteId'       => __( 'Noe gikk galt under generering av idéen.', 'ai-tidsreise' ),
 					'saving'              => __( 'Lagrer …', 'ai-tidsreise' ),
 					'saved'               => __( 'Lagret.', 'ai-tidsreise' ),
 					'errorSave'           => __( 'Kunne ikke lagre.', 'ai-tidsreise' ),
+					'deleting'            => __( 'Sletter …', 'ai-tidsreise' ),
+					'deleted'             => __( 'Refleksjonen er slettet.', 'ai-tidsreise' ),
+					'errorDelete'         => __( 'Kunne ikke slette.', 'ai-tidsreise' ),
+					'confirmDelete'       => __( 'Er du sikker på at du vil slette refleksjonen og idéen for dette innlegget? Dette kan ikke angres.', 'ai-tidsreise' ),
 				),
 			)
 		);

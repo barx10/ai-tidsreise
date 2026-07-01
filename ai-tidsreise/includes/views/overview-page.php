@@ -26,6 +26,12 @@ $status_labels = array(
 		<?php esc_html_e( 'Bla gjennom tidligere innlegg som har fått en 2026-refleksjon. Klikk på et innlegg for å lese, redigere eller generere på nytt.', 'ai-tidsreise' ); ?>
 	</p>
 
+	<?php if ( isset( $_GET['deleted'] ) ) : ?>
+		<div class="notice notice-success is-dismissible">
+			<p><?php esc_html_e( 'Refleksjonen ble slettet.', 'ai-tidsreise' ); ?></p>
+		</div>
+	<?php endif; ?>
+
 	<?php if ( ! $query->have_posts() ) : ?>
 		<p><?php esc_html_e( 'Ingen refleksjoner er generert ennå.', 'ai-tidsreise' ); ?></p>
 	<?php else : ?>
@@ -73,6 +79,14 @@ $status_labels = array(
 					<a href="<?php echo esc_url( get_edit_post_link( $post_id ) ); ?>" class="button">
 						<?php esc_html_e( 'Åpne innlegg', 'ai-tidsreise' ); ?>
 					</a>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ai-tidsreise-delete-form" onsubmit="return confirm( '<?php echo esc_js( __( 'Er du sikker på at du vil slette refleksjonen og idéen for dette innlegget? Dette kan ikke angres.', 'ai-tidsreise' ) ); ?>' );">
+						<input type="hidden" name="action" value="ai_tidsreise_delete_reflection" />
+						<input type="hidden" name="post_id" value="<?php echo esc_attr( (string) $post_id ); ?>" />
+						<?php wp_nonce_field( 'ai_tidsreise_delete_' . $post_id ); ?>
+						<button type="submit" class="button button-link-delete">
+							<?php esc_html_e( 'Slett refleksjon', 'ai-tidsreise' ); ?>
+						</button>
+					</form>
 				</p>
 			</div>
 			<hr />

@@ -51,6 +51,7 @@ class AI_Tidsreise_Overview {
 	private function __construct() {
 		add_action( 'admin_menu', array( $this, 'register_page' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_post_ai_tidsreise_delete_reflection', array( $this, 'handle_delete' ) );
 	}
 
 	/**
@@ -113,5 +114,36 @@ class AI_Tidsreise_Overview {
 		require AI_TIDSREISE_PLUGIN_DIR . 'includes/views/overview-page.php';
 
 		wp_reset_postdata();
+	}
+
+	/**
+	 * Håndter innsending av slette-skjemaet fra oversiktssiden.
+	 *
+	 * Sletter refleksjonen, idéen og synlighetsvalget for det oppgitte innlegget,
+	 * og sender forfatteren tilbake til oversikten med en bekreftelse.
+	 */
+	public function handle_delete(): void {
+		if ( ! current_user_can( 'edit_posts' ) ) {
+			wp_die( esc_html__( 'Du har ikke tilgang til å gjøre dette.', 'ai-tidsreise' ), '', array( 'response' => 403 ) );
+		}
+
+		$post_id = isset( $_POST['post_id'] ) ? absint( $_POST['post_id'] ) : 0;
+
+		check_admin_referer( 'ai_tidsreise_delete_' . $post_id );
+
+		if ( $post_id && current_user_can( 'edit_post', $post_id ) ) {
+			AI_Tidsreise_Post_Meta::delete_reflection( $post_id );
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'ai-tidsreise-oversikt',
+					'deleted' => '1',
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
 	}
 }

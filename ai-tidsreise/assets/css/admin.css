@@ -45,3 +45,8 @@
 .ai-tidsreise-overview-excerpt {
 	margin: 8px 0;
 }
+
+.ai-tidsreise-delete-form {
+	display: inline-block;
+	margin-left: 6px;
+}
