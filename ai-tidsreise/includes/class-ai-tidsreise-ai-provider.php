@@ -12,21 +12,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Genererer 2026-refleksjoner ved hjelp av en valgt AI-leverandør.
+ * Genererer 2026-refleksjoner og oppfølgingsidéer ved hjelp av en valgt AI-leverandør.
  */
 class AI_Tidsreise_AI_Provider {
 
 	/**
-	 * Skilletegn som ber AI-en dele svaret i refleksjon og idé til neste innlegg.
-	 */
-	private const SECTION_DELIMITER = '###NESTE-IDE###';
-
-	/**
-	 * Hardkodet systemprompt som styrer hvordan refleksjonen skrives.
+	 * Hardkodet systemprompt for selve 2026-refleksjonen.
 	 *
 	 * Skal IKKE eksponeres eller gjøres redigerbar i UI.
 	 */
-	private const SYSTEM_PROMPT = <<<'PROMPT'
+	private const REFLECTION_SYSTEM_PROMPT = <<<'PROMPT'
 Du skal analysere et blogginnlegg som om det er skrevet av forfatteren selv, en gang i fortiden. Dette er forfatterens private notater, ikke tekst som skal publiseres for lesere.
 
 Skriv til forfatteren i du-form, som om en klokere og mer erfaren utgave av forfatteren, i 2026, skriver en direkte henvendelse tilbake til seg selv i fortiden. Ikke skriv i jeg-form, og ikke lag en dagboksnotat signert av forfatteren. Tiltal forfatteren som «du» gjennom hele teksten.
@@ -38,8 +33,22 @@ Skap idékoblinger til andre kjente temaer hos forfatteren, som kritisk tenkning
 Skriv på feilfritt norsk (bokmål). Bruk ikke tankestreker. Unngå amerikansk skrivestil og anglisismer. Hold en fast, personlig og reflektert tone gjennom hele teksten.
 
 Skriv i ren løpende tekst, som vanlig prosa i avsnitt. Bruk aldri Markdown-syntaks eller andre formateringstegn som stjerner, firkanttegn eller understreker rundt ord eller overskrifter. Ikke bruk punktlister eller nummererte lister. Ikke inkluder noen overskrift eller tittel før selve teksten.
+PROMPT;
 
-Når refleksjonen er ferdig, skriv skilletegnet ###NESTE-IDE### alene på egen linje. Skriv deretter et kort og konkret forslag, på to til fire setninger, til hva forfatteren kunne skrive et nytt innlegg om, som en naturlig videreutvikling av temaet i lys av det som har skjedd siden den gang. Ikke gjenta refleksjonen i forslaget. Skriv også dette i du-form, i ren løpende tekst uten Markdown.
+	/**
+	 * Hardkodet systemprompt for idé til neste innlegg.
+	 *
+	 * Brukes kun når forfatteren eksplisitt ber om det, basert på det opprinnelige
+	 * innlegget og refleksjonen som allerede er generert for det.
+	 */
+	private const FOLLOW_UP_SYSTEM_PROMPT = <<<'PROMPT'
+Du får et gammelt blogginnlegg og en refleksjon som allerede er skrevet om det, fra forfatterens 2026-perspektiv. Dette er private notater, ikke tekst som skal publiseres for lesere.
+
+Skriv et kort og konkret forslag, på to til fire setninger, til hva forfatteren kunne skrive et helt nytt innlegg om, som en naturlig videreutvikling av temaet i lys av det som har skjedd siden den gang. Ikke gjenta refleksjonen eller oppsummer det opprinnelige innlegget.
+
+Skriv i du-form, som en direkte henvendelse til forfatteren. Skriv på feilfritt norsk (bokmål), uten tankestreker og uten amerikansk skrivestil.
+
+Skriv i ren løpende tekst. Bruk aldri Markdown-syntaks, overskrifter eller punktlister.
 PROMPT;
 
 	/**
@@ -71,25 +80,67 @@ PROMPT;
 	}
 
 	/**
-	 * Generer en 2026-refleksjon og en idé til neste innlegg for et gitt innlegg.
+	 * Generer en 2026-refleksjon for et gitt innlegg.
 	 *
 	 * @param int $post_id Innleggets ID.
-	 * @return array{refleksjon: string, naeste_id: string}|WP_Error
+	 * @return string|WP_Error
 	 */
 	public function generate_reflection( int $post_id ) {
-		if ( ! AI_Tidsreise_Rate_Limiter::is_allowed() ) {
-			return new WP_Error(
-				'ai_tidsreise_rate_limited',
-				__( 'For mange forespørsler. Vent litt før du prøver igjen.', 'ai-tidsreise' )
-			);
-		}
-
 		$post = get_post( $post_id );
 
 		if ( ! $post ) {
 			return new WP_Error(
 				'ai_tidsreise_invalid_post',
 				__( 'Fant ikke innlegget.', 'ai-tidsreise' )
+			);
+		}
+
+		return $this->call_ai( self::REFLECTION_SYSTEM_PROMPT, $this->build_post_prompt( $post ) );
+	}
+
+	/**
+	 * Generer en idé til neste innlegg, basert på et innlegg og dets eksisterende refleksjon.
+	 *
+	 * @param int $post_id Innleggets ID.
+	 * @return string|WP_Error
+	 */
+	public function generate_follow_up_idea( int $post_id ) {
+		$post = get_post( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error(
+				'ai_tidsreise_invalid_post',
+				__( 'Fant ikke innlegget.', 'ai-tidsreise' )
+			);
+		}
+
+		$refleksjon = AI_Tidsreise_Post_Meta::get_refleksjon( $post_id );
+
+		if ( '' === trim( wp_strip_all_tags( $refleksjon ) ) ) {
+			return new WP_Error(
+				'ai_tidsreise_missing_reflection',
+				__( 'Generer refleksjonen for innlegget først.', 'ai-tidsreise' )
+			);
+		}
+
+		$user_prompt = $this->build_post_prompt( $post ) . "\n\nRefleksjon skrevet i 2026:\n" . wp_strip_all_tags( $refleksjon );
+
+		return $this->call_ai( self::FOLLOW_UP_SYSTEM_PROMPT, $user_prompt );
+	}
+
+	/**
+	 * Slå opp konfigurert leverandør og send forespørselen videre, med rate limiting
+	 * og opprydding av svaret felles for både refleksjon og oppfølgingsidé.
+	 *
+	 * @param string $system_prompt Systemprompt som styrer oppgaven.
+	 * @param string $user_prompt   Brukerprompt med innhold å analysere.
+	 * @return string|WP_Error
+	 */
+	private function call_ai( string $system_prompt, string $user_prompt ) {
+		if ( ! AI_Tidsreise_Rate_Limiter::is_allowed() ) {
+			return new WP_Error(
+				'ai_tidsreise_rate_limited',
+				__( 'For mange forespørsler. Vent litt før du prøver igjen.', 'ai-tidsreise' )
 			);
 		}
 
@@ -110,9 +161,9 @@ PROMPT;
 		AI_Tidsreise_Rate_Limiter::register_call();
 
 		$result = match ( $provider ) {
-			'claude' => $this->call_claude( $post, $api_key, $model ),
-			'openai' => $this->call_openai( $post, $api_key, $model ),
-			'gemini' => $this->call_gemini( $post, $api_key, $model ),
+			'claude' => $this->call_claude( $api_key, $model, $system_prompt, $user_prompt ),
+			'openai' => $this->call_openai( $api_key, $model, $system_prompt, $user_prompt ),
+			'gemini' => $this->call_gemini( $api_key, $model, $system_prompt, $user_prompt ),
 			default  => new WP_Error( 'ai_tidsreise_unknown_provider', __( 'Ukjent AI-leverandør.', 'ai-tidsreise' ) ),
 		};
 
@@ -120,43 +171,28 @@ PROMPT;
 			return $result;
 		}
 
-		$sections = $this->split_sections( $result );
+		$text = trim( $this->strip_markdown( $result ) );
 
-		if ( '' === $sections['refleksjon'] ) {
+		if ( '' === $text ) {
 			return new WP_Error(
 				'ai_tidsreise_empty_response',
 				__( 'AI-leverandøren returnerte et tomt svar.', 'ai-tidsreise' )
 			);
 		}
 
-		return $sections;
-	}
-
-	/**
-	 * Del opp rå AI-tekst i refleksjon og idé til neste innlegg, basert på skilletegnet,
-	 * og rens Markdown separat fra hver del.
-	 *
-	 * @param string $text Rå tekst fra AI-leverandøren, før opprydding.
-	 * @return array{refleksjon: string, naeste_id: string}
-	 */
-	private function split_sections( string $text ): array {
-		$pieces = preg_split( '/\R*' . preg_quote( self::SECTION_DELIMITER, '/' ) . '\R*/', $text, 2 );
-
-		return array(
-			'refleksjon' => trim( $this->strip_markdown( $pieces[0] ?? '' ) ),
-			'naeste_id'  => trim( $this->strip_markdown( $pieces[1] ?? '' ) ),
-		);
+		return $text;
 	}
 
 	/**
 	 * Kall Anthropic Claude sitt Messages-API.
 	 *
-	 * @param WP_Post $post    Innlegget som skal analyseres.
-	 * @param string  $api_key Dekryptert API-nøkkel.
-	 * @param string  $model   Modellnavn.
+	 * @param string $api_key       Dekryptert API-nøkkel.
+	 * @param string $model         Modellnavn.
+	 * @param string $system_prompt Systemprompt.
+	 * @param string $user_prompt   Brukerprompt.
 	 * @return string|WP_Error
 	 */
-	private function call_claude( WP_Post $post, string $api_key, string $model ) {
+	private function call_claude( string $api_key, string $model, string $system_prompt, string $user_prompt ) {
 		$response = wp_remote_post(
 			'https://api.anthropic.com/v1/messages',
 			array(
@@ -170,11 +206,11 @@ PROMPT;
 					array(
 						'model'      => $model,
 						'max_tokens' => self::MAX_OUTPUT_TOKENS,
-						'system'     => self::SYSTEM_PROMPT,
+						'system'     => $system_prompt,
 						'messages'   => array(
 							array(
 								'role'    => 'user',
-								'content' => $this->build_user_prompt( $post ),
+								'content' => $user_prompt,
 							),
 						),
 					)
@@ -192,20 +228,19 @@ PROMPT;
 			return $data;
 		}
 
-		$text = $data['content'][0]['text'] ?? '';
-
-		return $this->finalize_text( (string) $text );
+		return (string) ( $data['content'][0]['text'] ?? '' );
 	}
 
 	/**
 	 * Kall OpenAI sitt Chat Completions-API.
 	 *
-	 * @param WP_Post $post    Innlegget som skal analyseres.
-	 * @param string  $api_key Dekryptert API-nøkkel.
-	 * @param string  $model   Modellnavn.
+	 * @param string $api_key       Dekryptert API-nøkkel.
+	 * @param string $model         Modellnavn.
+	 * @param string $system_prompt Systemprompt.
+	 * @param string $user_prompt   Brukerprompt.
 	 * @return string|WP_Error
 	 */
-	private function call_openai( WP_Post $post, string $api_key, string $model ) {
+	private function call_openai( string $api_key, string $model, string $system_prompt, string $user_prompt ) {
 		$response = wp_remote_post(
 			'https://api.openai.com/v1/chat/completions',
 			array(
@@ -221,11 +256,11 @@ PROMPT;
 						'messages'   => array(
 							array(
 								'role'    => 'system',
-								'content' => self::SYSTEM_PROMPT,
+								'content' => $system_prompt,
 							),
 							array(
 								'role'    => 'user',
-								'content' => $this->build_user_prompt( $post ),
+								'content' => $user_prompt,
 							),
 						),
 					)
@@ -243,20 +278,19 @@ PROMPT;
 			return $data;
 		}
 
-		$text = $data['choices'][0]['message']['content'] ?? '';
-
-		return $this->finalize_text( (string) $text );
+		return (string) ( $data['choices'][0]['message']['content'] ?? '' );
 	}
 
 	/**
 	 * Kall Google Gemini sitt generateContent-API.
 	 *
-	 * @param WP_Post $post    Innlegget som skal analyseres.
-	 * @param string  $api_key Dekryptert API-nøkkel.
-	 * @param string  $model   Modellnavn.
+	 * @param string $api_key       Dekryptert API-nøkkel.
+	 * @param string $model         Modellnavn.
+	 * @param string $system_prompt Systemprompt.
+	 * @param string $user_prompt   Brukerprompt.
 	 * @return string|WP_Error
 	 */
-	private function call_gemini( WP_Post $post, string $api_key, string $model ) {
+	private function call_gemini( string $api_key, string $model, string $system_prompt, string $user_prompt ) {
 		$url = sprintf(
 			'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
 			rawurlencode( $model )
@@ -274,14 +308,14 @@ PROMPT;
 					array(
 						'system_instruction' => array(
 							'parts' => array(
-								array( 'text' => self::SYSTEM_PROMPT ),
+								array( 'text' => $system_prompt ),
 							),
 						),
 						'contents'            => array(
 							array(
 								'role'  => 'user',
 								'parts' => array(
-									array( 'text' => $this->build_user_prompt( $post ) ),
+									array( 'text' => $user_prompt ),
 								),
 							),
 						),
@@ -334,7 +368,7 @@ PROMPT;
 			);
 		}
 
-		return $this->finalize_text( $text );
+		return $text;
 	}
 
 	/**
@@ -393,25 +427,6 @@ PROMPT;
 	}
 
 	/**
-	 * Trim og valider den genererte teksten før den returneres.
-	 *
-	 * @param string $text Rå tekst fra AI-leverandøren.
-	 * @return string|WP_Error
-	 */
-	private function finalize_text( string $text ) {
-		$text = trim( $text );
-
-		if ( '' === $text ) {
-			return new WP_Error(
-				'ai_tidsreise_empty_response',
-				__( 'AI-leverandøren returnerte et tomt svar.', 'ai-tidsreise' )
-			);
-		}
-
-		return $text;
-	}
-
-	/**
 	 * Fjern vanlig Markdown-syntaks AI-modellen kan slippe gjennom med,
 	 * til tross for instruksen om ren løpende tekst i systemprompten.
 	 *
@@ -432,11 +447,11 @@ PROMPT;
 	}
 
 	/**
-	 * Bygg brukerprompten som sendes sammen med systemprompten.
+	 * Bygg brukerprompten med innleggets tittel, dato og innhold.
 	 *
 	 * @param WP_Post $post Innlegget som skal analyseres.
 	 */
-	private function build_user_prompt( WP_Post $post ): string {
+	private function build_post_prompt( WP_Post $post ): string {
 		$title   = wp_strip_all_tags( get_the_title( $post ) );
 		$content = wp_strip_all_tags( $post->post_content );
 		$date    = get_the_date( 'j. F Y', $post );

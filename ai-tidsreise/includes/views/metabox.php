@@ -71,6 +71,15 @@ $status_labels = array(
 		rows="4"
 	><?php echo esc_textarea( $naeste_id ); ?></textarea>
 
+	<p>
+		<button type="button" class="button" id="ai-tidsreise-naeste-id-button">
+			<?php esc_html_e( 'Generer idé til neste innlegg', 'ai-tidsreise' ); ?>
+		</button>
+		<span class="spinner" id="ai-tidsreise-naeste-id-spinner"></span>
+	</p>
+
+	<div id="ai-tidsreise-naeste-id-feedback" class="ai-tidsreise-feedback" role="status" aria-live="polite"></div>
+
 	<p class="ai-tidsreise-synlig-toggle">
 		<label for="ai_tidsreise_synlig">
 			<input
@@ -84,12 +93,31 @@ $status_labels = array(
 		</label>
 	</p>
 
+	<p class="ai-tidsreise-save-row">
+		<button type="button" class="button button-primary" id="ai-tidsreise-save-button">
+			<?php esc_html_e( 'Lagre refleksjon og idé', 'ai-tidsreise' ); ?>
+		</button>
+		<span class="spinner" id="ai-tidsreise-save-spinner"></span>
+	</p>
+
+	<div id="ai-tidsreise-save-feedback" class="ai-tidsreise-feedback" role="status" aria-live="polite"></div>
+
 	<p class="description">
 		<?php
 		printf(
 			/* translators: %s: shortcode. */
 			esc_html__( 'Du kan også plassere refleksjonen manuelt hvor som helst med shortcoden %s', 'ai-tidsreise' ),
 			'<code>[etterpaklokskap]</code>'
+		);
+		?>
+	</p>
+
+	<p class="description">
+		<?php
+		printf(
+			/* translators: %s: lenke til oversiktssiden. */
+			esc_html__( 'Alle lagrede refleksjoner finner du samlet under %s.', 'ai-tidsreise' ),
+			'<a href="' . esc_url( admin_url( 'admin.php?page=ai-tidsreise-oversikt' ) ) . '">' . esc_html__( 'AI Tidsreise – Refleksjoner', 'ai-tidsreise' ) . '</a>'
 		);
 		?>
 	</p>
