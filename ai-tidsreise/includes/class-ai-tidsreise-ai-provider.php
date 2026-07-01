@@ -144,10 +144,11 @@ PROMPT;
 			);
 		}
 
-		$settings_service = AI_Tidsreise_Settings::get_instance();
-		$settings         = $settings_service->get_settings();
-		$provider         = $settings['provider'] ?? 'gemini';
-		$api_key          = $settings_service->get_api_key( $provider );
+		$settings_service  = AI_Tidsreise_Settings::get_instance();
+		$settings          = $settings_service->get_settings();
+		$provider          = $settings['provider'] ?? 'gemini';
+		$api_key           = $settings_service->get_api_key( $provider );
+		$enable_web_search = $settings_service->is_web_search_enabled();
 
 		if ( '' === $api_key ) {
 			return new WP_Error(
@@ -156,14 +157,25 @@ PROMPT;
 			);
 		}
 
+		if ( $enable_web_search && 'openai' === $provider ) {
+			return new WP_Error(
+				'ai_tidsreise_web_search_unsupported',
+				__( 'Websøk er slått på, men støttes foreløpig ikke for OpenAI i denne pluginen. Bytt leverandør eller slå av websøk i innstillingene.', 'ai-tidsreise' )
+			);
+		}
+
+		if ( $enable_web_search ) {
+			$system_prompt .= "\n\nDu har tilgang til søk på nettet. Bruk det ved behov til å sjekke fakta og aktuelle hendelser knyttet til temaet, slik at refleksjonen er forankret i det som faktisk har skjedd. Ikke list opp kilder eller lenker i teksten, skriv fortsatt i din egen stemme.";
+		}
+
 		$model = $settings_service->get_model( $provider );
 
 		AI_Tidsreise_Rate_Limiter::register_call();
 
 		$result = match ( $provider ) {
-			'claude' => $this->call_claude( $api_key, $model, $system_prompt, $user_prompt ),
+			'claude' => $this->call_claude( $api_key, $model, $system_prompt, $user_prompt, $enable_web_search ),
 			'openai' => $this->call_openai( $api_key, $model, $system_prompt, $user_prompt ),
-			'gemini' => $this->call_gemini( $api_key, $model, $system_prompt, $user_prompt ),
+			'gemini' => $this->call_gemini( $api_key, $model, $system_prompt, $user_prompt, $enable_web_search ),
 			default  => new WP_Error( 'ai_tidsreise_unknown_provider', __( 'Ukjent AI-leverandør.', 'ai-tidsreise' ) ),
 		};
 
@@ -186,35 +198,50 @@ PROMPT;
 	/**
 	 * Kall Anthropic Claude sitt Messages-API.
 	 *
-	 * @param string $api_key       Dekryptert API-nøkkel.
-	 * @param string $model         Modellnavn.
-	 * @param string $system_prompt Systemprompt.
-	 * @param string $user_prompt   Brukerprompt.
+	 * @param string $api_key           Dekryptert API-nøkkel.
+	 * @param string $model             Modellnavn.
+	 * @param string $system_prompt     Systemprompt.
+	 * @param string $user_prompt       Brukerprompt.
+	 * @param bool   $enable_web_search Om Claude skal få bruke sitt innebygde websøk-verktøy.
 	 * @return string|WP_Error
 	 */
-	private function call_claude( string $api_key, string $model, string $system_prompt, string $user_prompt ) {
+	private function call_claude( string $api_key, string $model, string $system_prompt, string $user_prompt, bool $enable_web_search = false ) {
+		$body = array(
+			'model'      => $model,
+			'max_tokens' => self::MAX_OUTPUT_TOKENS,
+			'system'     => $system_prompt,
+			'messages'   => array(
+				array(
+					'role'    => 'user',
+					'content' => $user_prompt,
+				),
+			),
+		);
+
+		$headers = array(
+			'x-api-key'         => $api_key,
+			'anthropic-version' => '2023-06-01',
+			'content-type'      => 'application/json',
+		);
+
+		if ( $enable_web_search ) {
+			$body['tools'] = array(
+				array(
+					'type'     => 'web_search_20250305',
+					'name'     => 'web_search',
+					'max_uses' => 3,
+				),
+			);
+
+			$headers['anthropic-beta'] = 'web-search-2025-03-05';
+		}
+
 		$response = wp_remote_post(
 			'https://api.anthropic.com/v1/messages',
 			array(
 				'timeout' => self::REQUEST_TIMEOUT,
-				'headers' => array(
-					'x-api-key'         => $api_key,
-					'anthropic-version' => '2023-06-01',
-					'content-type'      => 'application/json',
-				),
-				'body'    => wp_json_encode(
-					array(
-						'model'      => $model,
-						'max_tokens' => self::MAX_OUTPUT_TOKENS,
-						'system'     => $system_prompt,
-						'messages'   => array(
-							array(
-								'role'    => 'user',
-								'content' => $user_prompt,
-							),
-						),
-					)
-				),
+				'headers' => $headers,
+				'body'    => wp_json_encode( $body ),
 			)
 		);
 
@@ -228,7 +255,15 @@ PROMPT;
 			return $data;
 		}
 
-		return (string) ( $data['content'][0]['text'] ?? '' );
+		$text = '';
+
+		foreach ( $data['content'] ?? array() as $block ) {
+			if ( isset( $block['type'] ) && 'text' === $block['type'] && isset( $block['text'] ) ) {
+				$text .= $block['text'];
+			}
+		}
+
+		return $text;
 	}
 
 	/**
@@ -284,17 +319,49 @@ PROMPT;
 	/**
 	 * Kall Google Gemini sitt generateContent-API.
 	 *
-	 * @param string $api_key       Dekryptert API-nøkkel.
-	 * @param string $model         Modellnavn.
-	 * @param string $system_prompt Systemprompt.
-	 * @param string $user_prompt   Brukerprompt.
+	 * @param string $api_key           Dekryptert API-nøkkel.
+	 * @param string $model             Modellnavn.
+	 * @param string $system_prompt     Systemprompt.
+	 * @param string $user_prompt       Brukerprompt.
+	 * @param bool   $enable_web_search Om Gemini skal få bruke sitt innebygde google_search-verktøy.
 	 * @return string|WP_Error
 	 */
-	private function call_gemini( string $api_key, string $model, string $system_prompt, string $user_prompt ) {
+	private function call_gemini( string $api_key, string $model, string $system_prompt, string $user_prompt, bool $enable_web_search = false ) {
 		$url = sprintf(
 			'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
 			rawurlencode( $model )
 		);
+
+		$body = array(
+			'system_instruction' => array(
+				'parts' => array(
+					array( 'text' => $system_prompt ),
+				),
+			),
+			'contents'           => array(
+				array(
+					'role'  => 'user',
+					'parts' => array(
+						array( 'text' => $user_prompt ),
+					),
+				),
+			),
+			'generationConfig'   => array(
+				'maxOutputTokens' => self::MAX_OUTPUT_TOKENS,
+				'thinkingConfig'  => array(
+					// Dette er en ren skrivejobb uten behov for resonnering,
+					// så vi slår av «thinking» for å bruke hele token-budsjettet
+					// på selve teksten i stedet for intern tankekjede.
+					'thinkingBudget' => 0,
+				),
+			),
+		);
+
+		if ( $enable_web_search ) {
+			$body['tools'] = array(
+				array( 'google_search' => (object) array() ),
+			);
+		}
 
 		$response = wp_remote_post(
 			$url,
@@ -304,32 +371,7 @@ PROMPT;
 					'Content-Type'   => 'application/json',
 					'x-goog-api-key' => $api_key,
 				),
-				'body'    => wp_json_encode(
-					array(
-						'system_instruction' => array(
-							'parts' => array(
-								array( 'text' => $system_prompt ),
-							),
-						),
-						'contents'            => array(
-							array(
-								'role'  => 'user',
-								'parts' => array(
-									array( 'text' => $user_prompt ),
-								),
-							),
-						),
-						'generationConfig'    => array(
-							'maxOutputTokens' => self::MAX_OUTPUT_TOKENS,
-							'thinkingConfig'  => array(
-								// Dette er en ren skrivejobb uten behov for resonnering,
-								// så vi slår av «thinking» for å bruke hele token-budsjettet
-								// på selve teksten i stedet for intern tankekjede.
-								'thinkingBudget' => 0,
-							),
-						),
-					)
-				),
+				'body'    => wp_json_encode( $body ),
 			)
 		);
 

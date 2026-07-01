@@ -98,6 +98,7 @@ class AI_Tidsreise_Settings {
 		$sanitized = array(
 			'provider'          => $provider,
 			'auto_vis_standard' => ! empty( $input['auto_vis_standard'] ),
+			'enable_web_search' => ! empty( $input['enable_web_search'] ),
 		);
 
 		$default_models = self::get_default_models();
@@ -139,6 +140,7 @@ class AI_Tidsreise_Settings {
 			'model_openai'      => $default_models['openai'],
 			'model_gemini'      => $default_models['gemini'],
 			'auto_vis_standard' => false,
+			'enable_web_search' => false,
 		);
 
 		$saved = get_option( self::OPTION_KEY, array() );
@@ -175,6 +177,13 @@ class AI_Tidsreise_Settings {
 		$defaults = self::get_default_models();
 
 		return $defaults[ $provider ] ?? '';
+	}
+
+	/**
+	 * Sjekk om websøk (grounding) skal brukes ved generering.
+	 */
+	public function is_web_search_enabled(): bool {
+		return ! empty( $this->get_settings()['enable_web_search'] );
 	}
 
 	/**
