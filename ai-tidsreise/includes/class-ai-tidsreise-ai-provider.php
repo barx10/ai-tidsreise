@@ -17,14 +17,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class AI_Tidsreise_AI_Provider {
 
 	/**
+	 * Skilletegn som ber AI-en dele svaret i refleksjon og idé til neste innlegg.
+	 */
+	private const SECTION_DELIMITER = '###NESTE-IDE###';
+
+	/**
 	 * Hardkodet systemprompt som styrer hvordan refleksjonen skrives.
 	 *
 	 * Skal IKKE eksponeres eller gjøres redigerbar i UI.
 	 */
 	private const SYSTEM_PROMPT = <<<'PROMPT'
-Du skal analysere et blogginnlegg som om det var en dagboksnotat fra fortiden, skrevet av forfatteren selv.
+Du skal analysere et blogginnlegg som om det er skrevet av forfatteren selv, en gang i fortiden. Dette er forfatterens private notater, ikke tekst som skal publiseres for lesere.
 
-Skriv en reflektert innsikt datert 2026, i forfatterens egen stil: intellektuell, varm og tilgjengelig.
+Skriv til forfatteren i du-form, som om en klokere og mer erfaren utgave av forfatteren, i 2026, skriver en direkte henvendelse tilbake til seg selv i fortiden. Ikke skriv i jeg-form, og ikke lag en dagboksnotat signert av forfatteren. Tiltal forfatteren som «du» gjennom hele teksten.
 
 Vurder om ideen i innlegget holdt vann. Drøft hvorfor den eventuelt forsvant, ble glemt, eller utviklet seg videre i lys av det som har skjedd siden.
 
@@ -33,6 +38,8 @@ Skap idékoblinger til andre kjente temaer hos forfatteren, som kritisk tenkning
 Skriv på feilfritt norsk (bokmål). Bruk ikke tankestreker. Unngå amerikansk skrivestil og anglisismer. Hold en fast, personlig og reflektert tone gjennom hele teksten.
 
 Skriv i ren løpende tekst, som vanlig prosa i avsnitt. Bruk aldri Markdown-syntaks eller andre formateringstegn som stjerner, firkanttegn eller understreker rundt ord eller overskrifter. Ikke bruk punktlister eller nummererte lister. Ikke inkluder noen overskrift eller tittel før selve teksten.
+
+Når refleksjonen er ferdig, skriv skilletegnet ###NESTE-IDE### alene på egen linje. Skriv deretter et kort og konkret forslag, på to til fire setninger, til hva forfatteren kunne skrive et nytt innlegg om, som en naturlig videreutvikling av temaet i lys av det som har skjedd siden den gang. Ikke gjenta refleksjonen i forslaget. Skriv også dette i du-form, i ren løpende tekst uten Markdown.
 PROMPT;
 
 	/**
@@ -64,10 +71,10 @@ PROMPT;
 	}
 
 	/**
-	 * Generer en 2026-refleksjon for et gitt innlegg.
+	 * Generer en 2026-refleksjon og en idé til neste innlegg for et gitt innlegg.
 	 *
 	 * @param int $post_id Innleggets ID.
-	 * @return string|WP_Error Generert tekst, eller WP_Error ved feil.
+	 * @return array{refleksjon: string, naeste_id: string}|WP_Error
 	 */
 	public function generate_reflection( int $post_id ) {
 		if ( ! AI_Tidsreise_Rate_Limiter::is_allowed() ) {
@@ -87,9 +94,9 @@ PROMPT;
 		}
 
 		$settings_service = AI_Tidsreise_Settings::get_instance();
-		$settings          = $settings_service->get_settings();
-		$provider          = $settings['provider'] ?? 'gemini';
-		$api_key           = $settings_service->get_api_key( $provider );
+		$settings         = $settings_service->get_settings();
+		$provider         = $settings['provider'] ?? 'gemini';
+		$api_key          = $settings_service->get_api_key( $provider );
 
 		if ( '' === $api_key ) {
 			return new WP_Error(
@@ -102,12 +109,43 @@ PROMPT;
 
 		AI_Tidsreise_Rate_Limiter::register_call();
 
-		return match ( $provider ) {
+		$result = match ( $provider ) {
 			'claude' => $this->call_claude( $post, $api_key, $model ),
 			'openai' => $this->call_openai( $post, $api_key, $model ),
 			'gemini' => $this->call_gemini( $post, $api_key, $model ),
 			default  => new WP_Error( 'ai_tidsreise_unknown_provider', __( 'Ukjent AI-leverandør.', 'ai-tidsreise' ) ),
 		};
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$sections = $this->split_sections( $result );
+
+		if ( '' === $sections['refleksjon'] ) {
+			return new WP_Error(
+				'ai_tidsreise_empty_response',
+				__( 'AI-leverandøren returnerte et tomt svar.', 'ai-tidsreise' )
+			);
+		}
+
+		return $sections;
+	}
+
+	/**
+	 * Del opp rå AI-tekst i refleksjon og idé til neste innlegg, basert på skilletegnet,
+	 * og rens Markdown separat fra hver del.
+	 *
+	 * @param string $text Rå tekst fra AI-leverandøren, før opprydding.
+	 * @return array{refleksjon: string, naeste_id: string}
+	 */
+	private function split_sections( string $text ): array {
+		$pieces = preg_split( '/\R*' . preg_quote( self::SECTION_DELIMITER, '/' ) . '\R*/', $text, 2 );
+
+		return array(
+			'refleksjon' => trim( $this->strip_markdown( $pieces[0] ?? '' ) ),
+			'naeste_id'  => trim( $this->strip_markdown( $pieces[1] ?? '' ) ),
+		);
 	}
 
 	/**
@@ -229,7 +267,7 @@ PROMPT;
 			array(
 				'timeout' => self::REQUEST_TIMEOUT,
 				'headers' => array(
-					'Content-Type'  => 'application/json',
+					'Content-Type'   => 'application/json',
 					'x-goog-api-key' => $api_key,
 				),
 				'body'    => wp_json_encode(
@@ -361,7 +399,7 @@ PROMPT;
 	 * @return string|WP_Error
 	 */
 	private function finalize_text( string $text ) {
-		$text = trim( $this->strip_markdown( $text ) );
+		$text = trim( $text );
 
 		if ( '' === $text ) {
 			return new WP_Error(

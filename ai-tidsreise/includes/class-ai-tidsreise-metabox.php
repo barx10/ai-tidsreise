@@ -106,9 +106,10 @@ class AI_Tidsreise_Metabox {
 				'nonce'   => wp_create_nonce( 'ai_tidsreise_ajax_nonce' ),
 				'postId'  => get_the_ID() ?: 0,
 				'i18n'    => array(
-					'generating' => __( 'Genererer refleksjon …', 'ai-tidsreise' ),
-					'success'    => __( 'Refleksjon generert. Husk å lagre eller oppdatere innlegget.', 'ai-tidsreise' ),
-					'error'      => __( 'Noe gikk galt under generering.', 'ai-tidsreise' ),
+					'generating'     => __( 'Genererer refleksjon …', 'ai-tidsreise' ),
+					'success'        => __( 'Refleksjon generert. Husk å lagre eller oppdatere innlegget.', 'ai-tidsreise' ),
+					'error'          => __( 'Noe gikk galt under generering.', 'ai-tidsreise' ),
+					'statusGenerert' => __( 'Generert', 'ai-tidsreise' ),
 				),
 			)
 		);
@@ -125,6 +126,7 @@ class AI_Tidsreise_Metabox {
 		$refleksjon = AI_Tidsreise_Post_Meta::get_refleksjon( $post->ID );
 		$status     = AI_Tidsreise_Post_Meta::get_status( $post->ID );
 		$synlig     = AI_Tidsreise_Post_Meta::is_synlig( $post->ID );
+		$naeste_id  = AI_Tidsreise_Post_Meta::get_naeste_id( $post->ID );
 
 		require AI_TIDSREISE_PLUGIN_DIR . 'includes/views/metabox.php';
 	}
@@ -164,6 +166,11 @@ class AI_Tidsreise_Metabox {
 					update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_STATUS, AI_Tidsreise_Post_Meta::STATUS_GENERERT );
 				}
 			}
+		}
+
+		if ( isset( $_POST['ai_tidsreise_naeste_id'] ) ) {
+			$naeste_id = wp_kses_post( wp_unslash( $_POST['ai_tidsreise_naeste_id'] ) );
+			update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_NAESTE_ID, $naeste_id );
 		}
 
 		$synlig = isset( $_POST['ai_tidsreise_synlig'] ) ? '1' : '';

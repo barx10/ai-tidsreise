@@ -32,6 +32,11 @@ class AI_Tidsreise_Post_Meta {
 	public const META_SYNLIG = '_etterpaklokskap_synlig';
 
 	/**
+	 * Meta-nøkkel for generert idé til neste innlegg.
+	 */
+	public const META_NAESTE_ID = '_etterpaklokskap_naeste_id';
+
+	/**
 	 * Status: ikke generert.
 	 */
 	public const STATUS_IKKE_GENERERT = 'ikke_generert';
@@ -119,6 +124,21 @@ class AI_Tidsreise_Post_Meta {
 				},
 			)
 		);
+
+		register_post_meta(
+			'post',
+			self::META_NAESTE_ID,
+			array(
+				'type'              => 'string',
+				'single'            => true,
+				'default'           => '',
+				'show_in_rest'      => false,
+				'sanitize_callback' => 'wp_kses_post',
+				'auth_callback'     => static function (): bool {
+					return current_user_can( 'edit_posts' );
+				},
+			)
+		);
 	}
 
 	/**
@@ -159,5 +179,14 @@ class AI_Tidsreise_Post_Meta {
 	 */
 	public static function is_synlig( int $post_id ): bool {
 		return (bool) get_post_meta( $post_id, self::META_SYNLIG, true );
+	}
+
+	/**
+	 * Hent forslaget til neste innlegg for et innlegg.
+	 *
+	 * @param int $post_id Innleggets ID.
+	 */
+	public static function get_naeste_id( int $post_id ): string {
+		return (string) get_post_meta( $post_id, self::META_NAESTE_ID, true );
 	}
 }

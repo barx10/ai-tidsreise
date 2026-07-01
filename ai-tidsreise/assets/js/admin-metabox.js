@@ -11,6 +11,7 @@
 		var $button = $( '#ai-tidsreise-generate-button' );
 		var $spinner = $( '#ai-tidsreise-spinner' );
 		var $feedback = $( '#ai-tidsreise-feedback' );
+		var $statusLabel = $( '#ai-tidsreise-status-label' );
 
 		if ( ! $button.length || typeof aiTidsreiseMetabox === 'undefined' ) {
 			return;
@@ -40,7 +41,10 @@
 							$( '#ai_tidsreise_refleksjon' ).val( response.data.refleksjon );
 						}
 
+						$( '#ai_tidsreise_naeste_id' ).val( response.data.naesteId );
+
 						$feedback.addClass( 'is-success' ).text( aiTidsreiseMetabox.i18n.success );
+						$statusLabel.text( aiTidsreiseMetabox.i18n.statusGenerert );
 					} else {
 						var message = response && response.data && response.data.message
 							? response.data.message
