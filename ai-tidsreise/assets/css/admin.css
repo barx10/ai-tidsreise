@@ -1,0 +1,24 @@
+.ai-tidsreise-metabox .ai-tidsreise-status {
+	font-size: 13px;
+}
+
+.ai-tidsreise-metabox .spinner {
+	float: none;
+	margin-top: 0;
+}
+
+.ai-tidsreise-feedback {
+	margin: 8px 0;
+}
+
+.ai-tidsreise-feedback.is-error {
+	color: #b32d2e;
+}
+
+.ai-tidsreise-feedback.is-success {
+	color: #007017;
+}
+
+.ai-tidsreise-synlig-toggle {
+	margin-top: 12px;
+}

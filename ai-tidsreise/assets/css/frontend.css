@@ -1,0 +1,13 @@
+.etterpaklokskap-boks {
+	margin: 2em 0;
+	padding: 1.5em;
+	border-left: 4px solid;
+}
+
+.etterpaklokskap-boks-tittel {
+	margin-top: 0;
+}
+
+.etterpaklokskap-boks-innhold > *:last-child {
+	margin-bottom: 0;
+}
