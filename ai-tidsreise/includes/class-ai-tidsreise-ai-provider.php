@@ -41,7 +41,7 @@ PROMPT;
 	/**
 	 * Maks antall tokens AI-en får generere i svaret.
 	 */
-	private const MAX_OUTPUT_TOKENS = 1500;
+	private const MAX_OUTPUT_TOKENS = 3000;
 
 	/**
 	 * Tidsavbrudd for eksterne API-kall, i sekunder.
@@ -247,6 +247,12 @@ PROMPT;
 						),
 						'generationConfig'    => array(
 							'maxOutputTokens' => self::MAX_OUTPUT_TOKENS,
+							'thinkingConfig'  => array(
+								// Dette er en ren skrivejobb uten behov for resonnering,
+								// så vi slår av «thinking» for å bruke hele token-budsjettet
+								// på selve teksten i stedet for intern tankekjede.
+								'thinkingBudget' => 0,
+							),
 						),
 					)
 				),
@@ -272,15 +278,20 @@ PROMPT;
 			}
 		}
 
-		if ( '' === $text ) {
-			$finish_reason = $data['candidates'][0]['finishReason'] ?? '';
+		$finish_reason = $data['candidates'][0]['finishReason'] ?? '';
 
-			if ( 'SAFETY' === $finish_reason || 'RECITATION' === $finish_reason ) {
-				return new WP_Error(
-					'ai_tidsreise_blocked',
-					__( 'Gemini avviste forespørselen (innholdsfilter). Prøv å redigere innlegget eller prøv igjen.', 'ai-tidsreise' )
-				);
-			}
+		if ( '' === $text && ( 'SAFETY' === $finish_reason || 'RECITATION' === $finish_reason ) ) {
+			return new WP_Error(
+				'ai_tidsreise_blocked',
+				__( 'Gemini avviste forespørselen (innholdsfilter). Prøv å redigere innlegget eller prøv igjen.', 'ai-tidsreise' )
+			);
+		}
+
+		if ( 'MAX_TOKENS' === $finish_reason ) {
+			return new WP_Error(
+				'ai_tidsreise_truncated',
+				__( 'Svaret ble kuttet av fordi token-grensen ble nådd før teksten var ferdig. Prøv igjen, eller be om en kortere refleksjon.', 'ai-tidsreise' )
+			);
 		}
 
 		return $this->finalize_text( $text );
