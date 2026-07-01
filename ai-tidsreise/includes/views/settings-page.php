@@ -64,6 +64,28 @@ if ( ! defined( 'ABSPATH' ) ) {
 						</p>
 					</td>
 				</tr>
+				<tr>
+					<th scope="row">
+						<label for="ai_tidsreise_model_<?php echo esc_attr( $value ); ?>">
+							<?php
+							printf(
+								/* translators: %s: navn på AI-leverandør. */
+								esc_html__( 'Modell (%s)', 'ai-tidsreise' ),
+								esc_html( $label )
+							);
+							?>
+						</label>
+					</th>
+					<td>
+						<input
+							type="text"
+							class="regular-text"
+							id="ai_tidsreise_model_<?php echo esc_attr( $value ); ?>"
+							name="ai_tidsreise_settings[model_<?php echo esc_attr( $value ); ?>]"
+							value="<?php echo esc_attr( (string) ( $settings[ 'model_' . $value ] ?? '' ) ); ?>"
+						/>
+					</td>
+				</tr>
 			<?php endforeach; ?>
 
 			<tr>

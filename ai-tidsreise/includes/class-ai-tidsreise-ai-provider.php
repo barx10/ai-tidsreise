@@ -2,9 +2,6 @@
 /**
  * Abstraksjon for AI-leverandører (Claude, OpenAI, Gemini).
  *
- * SKJELETT: Metodekroppene for de faktiske API-kallene er ikke implementert
- * ennå. Full implementasjon fylles inn i et eget steg etter bekreftelse.
- *
  * @package AI_Tidsreise
  */
 
@@ -37,15 +34,30 @@ Skriv på feilfritt norsk (bokmål). Bruk ikke tankestreker. Unngå amerikansk s
 PROMPT;
 
 	/**
+	 * Maks antall tegn av innleggsinnholdet som sendes til AI-en.
+	 */
+	private const MAX_CONTENT_LENGTH = 8000;
+
+	/**
+	 * Maks antall tokens AI-en får generere i svaret.
+	 */
+	private const MAX_OUTPUT_TOKENS = 1500;
+
+	/**
+	 * Tidsavbrudd for eksterne API-kall, i sekunder.
+	 */
+	private const REQUEST_TIMEOUT = 45;
+
+	/**
 	 * Støttede leverandører og tilhørende visningsnavn.
 	 *
 	 * @return array<string, string>
 	 */
 	public static function get_supported_providers(): array {
 		return array(
+			'gemini' => 'Google Gemini',
 			'claude' => 'Claude (Anthropic)',
 			'openai' => 'OpenAI',
-			'gemini' => 'Google Gemini',
 		);
 	}
 
@@ -72,56 +84,280 @@ PROMPT;
 			);
 		}
 
-		$settings = AI_Tidsreise_Settings::get_instance()->get_settings();
-		$provider = $settings['provider'] ?? 'claude';
+		$settings_service = AI_Tidsreise_Settings::get_instance();
+		$settings          = $settings_service->get_settings();
+		$provider          = $settings['provider'] ?? 'gemini';
+		$api_key           = $settings_service->get_api_key( $provider );
+
+		if ( '' === $api_key ) {
+			return new WP_Error(
+				'ai_tidsreise_missing_api_key',
+				__( 'Ingen API-nøkkel er konfigurert for valgt leverandør. Gå til AI Tidsreise-innstillingene.', 'ai-tidsreise' )
+			);
+		}
+
+		$model = $settings_service->get_model( $provider );
 
 		AI_Tidsreise_Rate_Limiter::register_call();
 
 		return match ( $provider ) {
-			'claude' => $this->call_claude( $post, $settings ),
-			'openai' => $this->call_openai( $post, $settings ),
-			'gemini' => $this->call_gemini( $post, $settings ),
+			'claude' => $this->call_claude( $post, $api_key, $model ),
+			'openai' => $this->call_openai( $post, $api_key, $model ),
+			'gemini' => $this->call_gemini( $post, $api_key, $model ),
 			default  => new WP_Error( 'ai_tidsreise_unknown_provider', __( 'Ukjent AI-leverandør.', 'ai-tidsreise' ) ),
 		};
 	}
 
 	/**
-	 * Kall Anthropic Claude sitt API.
+	 * Kall Anthropic Claude sitt Messages-API.
 	 *
-	 * @param WP_Post             $post     Innlegget som skal analyseres.
-	 * @param array<string,mixed> $settings Pluginens innstillinger.
+	 * @param WP_Post $post    Innlegget som skal analyseres.
+	 * @param string  $api_key Dekryptert API-nøkkel.
+	 * @param string  $model   Modellnavn.
 	 * @return string|WP_Error
 	 */
-	private function call_claude( WP_Post $post, array $settings ) {
-		// TODO: Implementeres i eget steg. Skal bruke wp_remote_post() mot
-		// Anthropic sitt Messages-API, med SYSTEM_PROMPT som system-parameter.
-		return new WP_Error( 'ai_tidsreise_not_implemented', __( 'Claude-integrasjonen er ikke implementert ennå.', 'ai-tidsreise' ) );
+	private function call_claude( WP_Post $post, string $api_key, string $model ) {
+		$response = wp_remote_post(
+			'https://api.anthropic.com/v1/messages',
+			array(
+				'timeout' => self::REQUEST_TIMEOUT,
+				'headers' => array(
+					'x-api-key'         => $api_key,
+					'anthropic-version' => '2023-06-01',
+					'content-type'      => 'application/json',
+				),
+				'body'    => wp_json_encode(
+					array(
+						'model'      => $model,
+						'max_tokens' => self::MAX_OUTPUT_TOKENS,
+						'system'     => self::SYSTEM_PROMPT,
+						'messages'   => array(
+							array(
+								'role'    => 'user',
+								'content' => $this->build_user_prompt( $post ),
+							),
+						),
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $this->wrap_transport_error( $response );
+		}
+
+		$data = $this->decode_response( $response, 'claude' );
+
+		if ( is_wp_error( $data ) ) {
+			return $data;
+		}
+
+		$text = $data['content'][0]['text'] ?? '';
+
+		return $this->finalize_text( (string) $text );
 	}
 
 	/**
-	 * Kall OpenAI sitt API.
+	 * Kall OpenAI sitt Chat Completions-API.
 	 *
-	 * @param WP_Post             $post     Innlegget som skal analyseres.
-	 * @param array<string,mixed> $settings Pluginens innstillinger.
+	 * @param WP_Post $post    Innlegget som skal analyseres.
+	 * @param string  $api_key Dekryptert API-nøkkel.
+	 * @param string  $model   Modellnavn.
 	 * @return string|WP_Error
 	 */
-	private function call_openai( WP_Post $post, array $settings ) {
-		// TODO: Implementeres i eget steg. Skal bruke wp_remote_post() mot
-		// OpenAI sitt Chat Completions- eller Responses-API.
-		return new WP_Error( 'ai_tidsreise_not_implemented', __( 'OpenAI-integrasjonen er ikke implementert ennå.', 'ai-tidsreise' ) );
+	private function call_openai( WP_Post $post, string $api_key, string $model ) {
+		$response = wp_remote_post(
+			'https://api.openai.com/v1/chat/completions',
+			array(
+				'timeout' => self::REQUEST_TIMEOUT,
+				'headers' => array(
+					'Authorization' => 'Bearer ' . $api_key,
+					'Content-Type'  => 'application/json',
+				),
+				'body'    => wp_json_encode(
+					array(
+						'model'      => $model,
+						'max_tokens' => self::MAX_OUTPUT_TOKENS,
+						'messages'   => array(
+							array(
+								'role'    => 'system',
+								'content' => self::SYSTEM_PROMPT,
+							),
+							array(
+								'role'    => 'user',
+								'content' => $this->build_user_prompt( $post ),
+							),
+						),
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $this->wrap_transport_error( $response );
+		}
+
+		$data = $this->decode_response( $response, 'openai' );
+
+		if ( is_wp_error( $data ) ) {
+			return $data;
+		}
+
+		$text = $data['choices'][0]['message']['content'] ?? '';
+
+		return $this->finalize_text( (string) $text );
 	}
 
 	/**
-	 * Kall Google Gemini sitt API.
+	 * Kall Google Gemini sitt generateContent-API.
 	 *
-	 * @param WP_Post             $post     Innlegget som skal analyseres.
-	 * @param array<string,mixed> $settings Pluginens innstillinger.
+	 * @param WP_Post $post    Innlegget som skal analyseres.
+	 * @param string  $api_key Dekryptert API-nøkkel.
+	 * @param string  $model   Modellnavn.
 	 * @return string|WP_Error
 	 */
-	private function call_gemini( WP_Post $post, array $settings ) {
-		// TODO: Implementeres i eget steg. Skal bruke wp_remote_post() mot
-		// Google sitt Gemini generateContent-API.
-		return new WP_Error( 'ai_tidsreise_not_implemented', __( 'Gemini-integrasjonen er ikke implementert ennå.', 'ai-tidsreise' ) );
+	private function call_gemini( WP_Post $post, string $api_key, string $model ) {
+		$url = sprintf(
+			'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent',
+			rawurlencode( $model )
+		);
+
+		$response = wp_remote_post(
+			$url,
+			array(
+				'timeout' => self::REQUEST_TIMEOUT,
+				'headers' => array(
+					'Content-Type'  => 'application/json',
+					'x-goog-api-key' => $api_key,
+				),
+				'body'    => wp_json_encode(
+					array(
+						'system_instruction' => array(
+							'parts' => array(
+								array( 'text' => self::SYSTEM_PROMPT ),
+							),
+						),
+						'contents'            => array(
+							array(
+								'role'  => 'user',
+								'parts' => array(
+									array( 'text' => $this->build_user_prompt( $post ) ),
+								),
+							),
+						),
+						'generationConfig'    => array(
+							'maxOutputTokens' => self::MAX_OUTPUT_TOKENS,
+						),
+					)
+				),
+			)
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return $this->wrap_transport_error( $response );
+		}
+
+		$data = $this->decode_response( $response, 'gemini' );
+
+		if ( is_wp_error( $data ) ) {
+			return $data;
+		}
+
+		$parts = $data['candidates'][0]['content']['parts'] ?? array();
+		$text  = '';
+
+		foreach ( $parts as $part ) {
+			if ( isset( $part['text'] ) ) {
+				$text .= $part['text'];
+			}
+		}
+
+		if ( '' === $text ) {
+			$finish_reason = $data['candidates'][0]['finishReason'] ?? '';
+
+			if ( 'SAFETY' === $finish_reason || 'RECITATION' === $finish_reason ) {
+				return new WP_Error(
+					'ai_tidsreise_blocked',
+					__( 'Gemini avviste forespørselen (innholdsfilter). Prøv å redigere innlegget eller prøv igjen.', 'ai-tidsreise' )
+				);
+			}
+		}
+
+		return $this->finalize_text( $text );
+	}
+
+	/**
+	 * Tolk en HTTP-respons som JSON, og gjør om HTTP-feilkoder til WP_Error.
+	 *
+	 * @param array<string,mixed> $response Respons fra wp_remote_post().
+	 * @param string               $provider Leverandørnøkkel, brukt i feilmeldinger.
+	 * @return array<string,mixed>|WP_Error
+	 */
+	private function decode_response( array $response, string $provider ) {
+		$status = wp_remote_retrieve_response_code( $response );
+		$body   = wp_remote_retrieve_body( $response );
+		$data   = json_decode( $body, true );
+
+		if ( $status < 200 || $status >= 300 ) {
+			$message = is_array( $data )
+				? (string) ( $data['error']['message'] ?? $data['error'] ?? '' )
+				: '';
+
+			return new WP_Error(
+				'ai_tidsreise_api_error',
+				sprintf(
+					/* translators: 1: leverandørnøkkel, 2: HTTP-statuskode, 3: feilmelding fra API-et. */
+					__( 'Feil fra %1$s-API (%2$d): %3$s', 'ai-tidsreise' ),
+					$provider,
+					$status,
+					'' !== $message ? $message : __( 'ukjent feil', 'ai-tidsreise' )
+				)
+			);
+		}
+
+		if ( ! is_array( $data ) ) {
+			return new WP_Error(
+				'ai_tidsreise_invalid_response',
+				__( 'Kunne ikke tolke svaret fra AI-leverandøren.', 'ai-tidsreise' )
+			);
+		}
+
+		return $data;
+	}
+
+	/**
+	 * Rens opp en WP_Error fra transportlaget (f.eks. tidsavbrudd, DNS-feil).
+	 *
+	 * @param WP_Error $error Feilen fra wp_remote_post().
+	 */
+	private function wrap_transport_error( WP_Error $error ): WP_Error {
+		return new WP_Error(
+			'ai_tidsreise_transport_error',
+			sprintf(
+				/* translators: %s: underliggende feilmelding. */
+				__( 'Kunne ikke nå AI-leverandøren: %s', 'ai-tidsreise' ),
+				$error->get_error_message()
+			)
+		);
+	}
+
+	/**
+	 * Trim og valider den genererte teksten før den returneres.
+	 *
+	 * @param string $text Rå tekst fra AI-leverandøren.
+	 * @return string|WP_Error
+	 */
+	private function finalize_text( string $text ) {
+		$text = trim( $text );
+
+		if ( '' === $text ) {
+			return new WP_Error(
+				'ai_tidsreise_empty_response',
+				__( 'AI-leverandøren returnerte et tomt svar.', 'ai-tidsreise' )
+			);
+		}
+
+		return $text;
 	}
 
 	/**
@@ -133,6 +369,12 @@ PROMPT;
 		$title   = wp_strip_all_tags( get_the_title( $post ) );
 		$content = wp_strip_all_tags( $post->post_content );
 		$date    = get_the_date( 'j. F Y', $post );
+
+		if ( function_exists( 'mb_strlen' ) && mb_strlen( $content ) > self::MAX_CONTENT_LENGTH ) {
+			$content = mb_substr( $content, 0, self::MAX_CONTENT_LENGTH ) . ' […]';
+		} elseif ( strlen( $content ) > self::MAX_CONTENT_LENGTH ) {
+			$content = substr( $content, 0, self::MAX_CONTENT_LENGTH ) . ' […]';
+		}
 
 		return sprintf(
 			"Innlegg publisert %s\nTittel: %s\n\nInnhold:\n%s",

@@ -108,10 +108,13 @@ function ai_tidsreise_activate(): void {
 		add_option(
 			'ai_tidsreise_settings',
 			array(
-				'provider'          => 'claude',
+				'provider'          => 'gemini',
 				'api_key_claude'    => '',
 				'api_key_openai'    => '',
 				'api_key_gemini'    => '',
+				'model_claude'      => 'claude-sonnet-5',
+				'model_openai'      => 'gpt-4.1-mini',
+				'model_gemini'      => 'gemini-3.5-flash',
 				'auto_vis_standard' => false,
 			)
 		);
