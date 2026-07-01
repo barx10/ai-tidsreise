@@ -103,6 +103,25 @@ if ( ! defined( 'ABSPATH' ) ) {
 					</label>
 				</td>
 			</tr>
+
+			<tr>
+				<th scope="row"><?php esc_html_e( 'Websøk', 'ai-tidsreise' ); ?></th>
+				<td>
+					<label for="ai_tidsreise_enable_web_search">
+						<input
+							type="checkbox"
+							id="ai_tidsreise_enable_web_search"
+							name="ai_tidsreise_settings[enable_web_search]"
+							value="1"
+							<?php checked( ! empty( $settings['enable_web_search'] ) ); ?>
+						/>
+						<?php esc_html_e( 'La AI-en søke på nettet for å forankre refleksjonen og idéen i det som faktisk har skjedd siden innlegget ble skrevet', 'ai-tidsreise' ); ?>
+					</label>
+					<p class="description">
+						<?php esc_html_e( 'Støttes for Gemini og Claude. Øker svartid og kostnad noe per kall. Ikke støttet for OpenAI ennå.', 'ai-tidsreise' ); ?>
+					</p>
+				</td>
+			</tr>
 		</table>
 
 		<?php submit_button(); ?>
