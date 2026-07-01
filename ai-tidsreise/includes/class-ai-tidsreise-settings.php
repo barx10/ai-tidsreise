@@ -100,15 +100,23 @@ class AI_Tidsreise_Settings {
 			'auto_vis_standard' => ! empty( $input['auto_vis_standard'] ),
 		);
 
-		foreach ( array( 'claude', 'openai', 'gemini' ) as $key ) {
-			$field = 'api_key_' . $key;
+		$default_models = self::get_default_models();
 
-			if ( isset( $input[ $field ] ) && '' !== trim( (string) $input[ $field ] ) ) {
-				$sanitized[ $field ] = AI_Tidsreise_Encryption::encrypt( sanitize_text_field( (string) $input[ $field ] ) );
+		foreach ( array( 'claude', 'openai', 'gemini' ) as $key ) {
+			$key_field = 'api_key_' . $key;
+
+			if ( isset( $input[ $key_field ] ) && '' !== trim( (string) $input[ $key_field ] ) ) {
+				$sanitized[ $key_field ] = AI_Tidsreise_Encryption::encrypt( sanitize_text_field( (string) $input[ $key_field ] ) );
 			} else {
 				// Behold eksisterende krypterte nøkkel dersom feltet ikke er endret.
-				$sanitized[ $field ] = $existing[ $field ] ?? '';
+				$sanitized[ $key_field ] = $existing[ $key_field ] ?? '';
 			}
+
+			$model_field = 'model_' . $key;
+
+			$sanitized[ $model_field ] = isset( $input[ $model_field ] ) && '' !== trim( (string) $input[ $model_field ] )
+				? sanitize_text_field( (string) $input[ $model_field ] )
+				: ( $existing[ $model_field ] ?? $default_models[ $key ] );
 		}
 
 		return $sanitized;
@@ -120,17 +128,53 @@ class AI_Tidsreise_Settings {
 	 * @return array<string,mixed>
 	 */
 	public function get_settings(): array {
+		$default_models = self::get_default_models();
+
 		$defaults = array(
-			'provider'          => 'claude',
+			'provider'          => 'gemini',
 			'api_key_claude'    => '',
 			'api_key_openai'    => '',
 			'api_key_gemini'    => '',
+			'model_claude'      => $default_models['claude'],
+			'model_openai'      => $default_models['openai'],
+			'model_gemini'      => $default_models['gemini'],
 			'auto_vis_standard' => false,
 		);
 
 		$saved = get_option( self::OPTION_KEY, array() );
 
 		return wp_parse_args( is_array( $saved ) ? $saved : array(), $defaults );
+	}
+
+	/**
+	 * Standard modellnavn per leverandør, brukt inntil admin overstyrer i innstillingene.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function get_default_models(): array {
+		return array(
+			'claude' => 'claude-sonnet-5',
+			'openai' => 'gpt-4.1-mini',
+			'gemini' => 'gemini-3.5-flash',
+		);
+	}
+
+	/**
+	 * Hent konfigurert modellnavn for en gitt leverandør.
+	 *
+	 * @param string $provider Leverandørnøkkel: claude, openai eller gemini.
+	 */
+	public function get_model( string $provider ): string {
+		$settings = $this->get_settings();
+		$field    = 'model_' . $provider;
+
+		if ( ! empty( $settings[ $field ] ) ) {
+			return (string) $settings[ $field ];
+		}
+
+		$defaults = self::get_default_models();
+
+		return $defaults[ $provider ] ?? '';
 	}
 
 	/**
