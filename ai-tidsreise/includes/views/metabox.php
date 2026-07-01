@@ -97,6 +97,9 @@ $status_labels = array(
 		<button type="button" class="button button-primary" id="ai-tidsreise-save-button">
 			<?php esc_html_e( 'Lagre refleksjon og idé', 'ai-tidsreise' ); ?>
 		</button>
+		<button type="button" class="button button-link-delete" id="ai-tidsreise-delete-button">
+			<?php esc_html_e( 'Slett refleksjon', 'ai-tidsreise' ); ?>
+		</button>
 		<span class="spinner" id="ai-tidsreise-save-spinner"></span>
 	</p>
 

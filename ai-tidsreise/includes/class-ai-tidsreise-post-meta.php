@@ -189,4 +189,17 @@ class AI_Tidsreise_Post_Meta {
 	public static function get_naeste_id( int $post_id ): string {
 		return (string) get_post_meta( $post_id, self::META_NAESTE_ID, true );
 	}
+
+	/**
+	 * Slett refleksjonen, idéen til neste innlegg og synlighetsvalget for et innlegg,
+	 * og nullstill status til «ikke generert».
+	 *
+	 * @param int $post_id Innleggets ID.
+	 */
+	public static function delete_reflection( int $post_id ): void {
+		delete_post_meta( $post_id, self::META_REFLEKSJON );
+		delete_post_meta( $post_id, self::META_NAESTE_ID );
+		delete_post_meta( $post_id, self::META_SYNLIG );
+		update_post_meta( $post_id, self::META_STATUS, self::STATUS_IKKE_GENERERT );
+	}
 }

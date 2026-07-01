@@ -163,5 +163,51 @@
 					$saveSpinner.removeClass( 'is-active' );
 				} );
 		} );
+
+		// Slett refleksjon, idé og synlighetsvalg for innlegget.
+		var $deleteButton = $( '#ai-tidsreise-delete-button' );
+
+		$deleteButton.on( 'click', function () {
+			if ( $deleteButton.prop( 'disabled' ) ) {
+				return;
+			}
+
+			if ( ! window.confirm( aiTidsreiseMetabox.i18n.confirmDelete ) ) {
+				return;
+			}
+
+			$deleteButton.prop( 'disabled', true );
+			$saveSpinner.addClass( 'is-active' );
+			$saveFeedback
+				.removeClass( 'is-error is-success' )
+				.text( aiTidsreiseMetabox.i18n.deleting );
+
+			$.post( aiTidsreiseMetabox.ajaxUrl, {
+				action: 'ai_tidsreise_delete',
+				nonce: aiTidsreiseMetabox.nonce,
+				post_id: aiTidsreiseMetabox.postId
+			} )
+				.done( function ( response ) {
+					if ( response && response.success ) {
+						setRefleksjonValue( '' );
+						$( '#ai_tidsreise_naeste_id' ).val( '' );
+						$( '#ai_tidsreise_synlig' ).prop( 'checked', false );
+						$saveFeedback.addClass( 'is-success' ).text( aiTidsreiseMetabox.i18n.deleted );
+						$statusLabel.text( aiTidsreiseMetabox.i18n.statusIkkeGenerert );
+					} else {
+						var message = response && response.data && response.data.message
+							? response.data.message
+							: aiTidsreiseMetabox.i18n.errorDelete;
+						$saveFeedback.addClass( 'is-error' ).text( message );
+					}
+				} )
+				.fail( function () {
+					$saveFeedback.addClass( 'is-error' ).text( aiTidsreiseMetabox.i18n.errorDelete );
+				} )
+				.always( function () {
+					$deleteButton.prop( 'disabled', false );
+					$saveSpinner.removeClass( 'is-active' );
+				} );
+		} );
 	} );
 } )( jQuery );

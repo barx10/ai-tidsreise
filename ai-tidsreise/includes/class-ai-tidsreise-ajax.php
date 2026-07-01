@@ -46,6 +46,7 @@ class AI_Tidsreise_Ajax {
 		add_action( 'wp_ajax_ai_tidsreise_generate', array( $this, 'handle_generate' ) );
 		add_action( 'wp_ajax_ai_tidsreise_generate_naeste_id', array( $this, 'handle_generate_naeste_id' ) );
 		add_action( 'wp_ajax_ai_tidsreise_save', array( $this, 'handle_save' ) );
+		add_action( 'wp_ajax_ai_tidsreise_delete', array( $this, 'handle_delete' ) );
 	}
 
 	/**
@@ -172,6 +173,21 @@ class AI_Tidsreise_Ajax {
 		wp_send_json_success(
 			array(
 				'status' => AI_Tidsreise_Post_Meta::get_status( $post_id ),
+			)
+		);
+	}
+
+	/**
+	 * Håndter AJAX-kall for å slette refleksjonen, idéen og synlighetsvalget for et innlegg.
+	 */
+	public function handle_delete(): void {
+		$post_id = $this->get_authorized_post_id();
+
+		AI_Tidsreise_Post_Meta::delete_reflection( $post_id );
+
+		wp_send_json_success(
+			array(
+				'status' => AI_Tidsreise_Post_Meta::STATUS_IKKE_GENERERT,
 			)
 		);
 	}
