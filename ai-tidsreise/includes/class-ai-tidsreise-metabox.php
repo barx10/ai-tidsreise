@@ -106,10 +106,16 @@ class AI_Tidsreise_Metabox {
 				'nonce'   => wp_create_nonce( 'ai_tidsreise_ajax_nonce' ),
 				'postId'  => get_the_ID() ?: 0,
 				'i18n'    => array(
-					'generating'     => __( 'Genererer refleksjon …', 'ai-tidsreise' ),
-					'success'        => __( 'Refleksjon generert. Husk å lagre eller oppdatere innlegget.', 'ai-tidsreise' ),
-					'error'          => __( 'Noe gikk galt under generering.', 'ai-tidsreise' ),
-					'statusGenerert' => __( 'Generert', 'ai-tidsreise' ),
+					'generating'          => __( 'Genererer refleksjon …', 'ai-tidsreise' ),
+					'success'             => __( 'Refleksjon generert. Husk å lagre.', 'ai-tidsreise' ),
+					'error'               => __( 'Noe gikk galt under generering.', 'ai-tidsreise' ),
+					'statusGenerert'      => __( 'Generert', 'ai-tidsreise' ),
+					'generatingNaesteId'  => __( 'Genererer idé …', 'ai-tidsreise' ),
+					'successNaesteId'     => __( 'Idé generert. Husk å lagre.', 'ai-tidsreise' ),
+					'errorNaesteId'       => __( 'Noe gikk galt under generering av idéen.', 'ai-tidsreise' ),
+					'saving'              => __( 'Lagrer …', 'ai-tidsreise' ),
+					'saved'               => __( 'Lagret.', 'ai-tidsreise' ),
+					'errorSave'           => __( 'Kunne ikke lagre.', 'ai-tidsreise' ),
 				),
 			)
 		);

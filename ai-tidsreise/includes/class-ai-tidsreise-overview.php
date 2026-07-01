@@ -54,16 +54,17 @@ class AI_Tidsreise_Overview {
 	}
 
 	/**
-	 * Registrer siden som en undermeny under Innlegg.
+	 * Registrer siden som et eget toppnivå-menypunkt, slik at den er lett å finne igjen.
 	 */
 	public function register_page(): void {
-		$this->hook_suffix = (string) add_submenu_page(
-			'edit.php',
+		$this->hook_suffix = (string) add_menu_page(
 			__( 'AI Tidsreise – Refleksjoner', 'ai-tidsreise' ),
 			__( 'AI Tidsreise', 'ai-tidsreise' ),
 			'edit_posts',
 			'ai-tidsreise-oversikt',
-			array( $this, 'render_page' )
+			array( $this, 'render_page' ),
+			'dashicons-clock',
+			26
 		);
 	}
 
