@@ -21,6 +21,7 @@ $meta_keys = array(
 	'_etterpaklokskap_refleksjon',
 	'_etterpaklokskap_status',
 	'_etterpaklokskap_synlig',
+	'_etterpaklokskap_naeste_id',
 );
 
 foreach ( $meta_keys as $meta_key ) {

@@ -2,7 +2,7 @@
 /**
  * View: Meta-boks for AI Tidsreise.
  *
- * Forventer $post, $refleksjon, $status og $synlig fra AI_Tidsreise_Metabox::render_metabox().
+ * Forventer $post, $refleksjon, $status, $synlig og $naeste_id fra AI_Tidsreise_Metabox::render_metabox().
  *
  * @package AI_Tidsreise
  */
@@ -35,6 +35,10 @@ $status_labels = array(
 		<span class="spinner" id="ai-tidsreise-spinner"></span>
 	</p>
 
+	<p class="description">
+		<?php esc_html_e( 'Dette er private notater til deg selv. Ingenting vises for leserne med mindre du aktivt velger det under.', 'ai-tidsreise' ); ?>
+	</p>
+
 	<div id="ai-tidsreise-feedback" class="ai-tidsreise-feedback" role="status" aria-live="polite"></div>
 
 	<p>
@@ -55,6 +59,18 @@ $status_labels = array(
 	);
 	?>
 
+	<p>
+		<label for="ai_tidsreise_naeste_id">
+			<strong><?php esc_html_e( 'Idé til neste innlegg (kan redigeres før lagring)', 'ai-tidsreise' ); ?></strong>
+		</label>
+	</p>
+	<textarea
+		id="ai_tidsreise_naeste_id"
+		name="ai_tidsreise_naeste_id"
+		class="widefat"
+		rows="4"
+	><?php echo esc_textarea( $naeste_id ); ?></textarea>
+
 	<p class="ai-tidsreise-synlig-toggle">
 		<label for="ai_tidsreise_synlig">
 			<input
@@ -64,7 +80,7 @@ $status_labels = array(
 				value="1"
 				<?php checked( $synlig ); ?>
 			/>
-			<?php esc_html_e( 'Vis automatisk under innholdet på forsiden av innlegget', 'ai-tidsreise' ); ?>
+			<?php esc_html_e( 'Vis refleksjonen automatisk under innholdet på forsiden av innlegget (valgfritt)', 'ai-tidsreise' ); ?>
 		</label>
 	</p>
 

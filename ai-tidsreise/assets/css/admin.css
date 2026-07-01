@@ -22,3 +22,20 @@
 .ai-tidsreise-synlig-toggle {
 	margin-top: 12px;
 }
+
+#ai_tidsreise_naeste_id {
+	margin-top: 8px;
+}
+
+.ai-tidsreise-overview-item {
+	margin: 16px 0;
+}
+
+.ai-tidsreise-overview-meta {
+	color: #646970;
+	font-size: 13px;
+}
+
+.ai-tidsreise-overview-excerpt {
+	margin: 8px 0;
+}

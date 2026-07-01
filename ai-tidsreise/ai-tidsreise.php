@@ -68,6 +68,7 @@ final class AI_Tidsreise {
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-ai-provider.php';
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-post-meta.php';
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-settings.php';
+		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-overview.php';
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-metabox.php';
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-ajax.php';
 		require_once AI_TIDSREISE_PLUGIN_DIR . 'includes/class-ai-tidsreise-bulk.php';
@@ -84,6 +85,7 @@ final class AI_Tidsreise {
 
 		AI_Tidsreise_Post_Meta::get_instance();
 		AI_Tidsreise_Settings::get_instance();
+		AI_Tidsreise_Overview::get_instance();
 		AI_Tidsreise_Metabox::get_instance();
 		AI_Tidsreise_Ajax::get_instance();
 		AI_Tidsreise_Bulk::get_instance();

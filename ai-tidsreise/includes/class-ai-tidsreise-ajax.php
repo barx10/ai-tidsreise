@@ -84,12 +84,17 @@ class AI_Tidsreise_Ajax {
 			wp_send_json_error( array( 'message' => $result->get_error_message() ), 500 );
 		}
 
-		update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_REFLEKSJON, wp_kses_post( $result ) );
+		$refleksjon = wp_kses_post( $result['refleksjon'] );
+		$naeste_id  = wp_kses_post( $result['naeste_id'] );
+
+		update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_REFLEKSJON, $refleksjon );
+		update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_NAESTE_ID, $naeste_id );
 		update_post_meta( $post_id, AI_Tidsreise_Post_Meta::META_STATUS, AI_Tidsreise_Post_Meta::STATUS_GENERERT );
 
 		wp_send_json_success(
 			array(
-				'refleksjon' => wp_kses_post( $result ),
+				'refleksjon' => $refleksjon,
+				'naesteId'   => $naeste_id,
 				'status'     => AI_Tidsreise_Post_Meta::STATUS_GENERERT,
 			)
 		);
