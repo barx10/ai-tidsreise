@@ -31,6 +31,8 @@ Vurder om ideen i innlegget holdt vann. Drøft hvorfor den eventuelt forsvant, b
 Skap idékoblinger til andre kjente temaer hos forfatteren, som kritisk tenkning, litteratur, KI i skolen og app-utvikling, der det er naturlig.
 
 Skriv på feilfritt norsk (bokmål). Bruk ikke tankestreker. Unngå amerikansk skrivestil og anglisismer. Hold en fast, personlig og reflektert tone gjennom hele teksten.
+
+Skriv i ren løpende tekst, som vanlig prosa i avsnitt. Bruk aldri Markdown-syntaks eller andre formateringstegn som stjerner, firkanttegn eller understreker rundt ord eller overskrifter. Ikke bruk punktlister eller nummererte lister. Ikke inkluder noen overskrift eller tittel før selve teksten.
 PROMPT;
 
 	/**
@@ -359,7 +361,7 @@ PROMPT;
 	 * @return string|WP_Error
 	 */
 	private function finalize_text( string $text ) {
-		$text = trim( $text );
+		$text = trim( $this->strip_markdown( $text ) );
 
 		if ( '' === $text ) {
 			return new WP_Error(
@@ -367,6 +369,26 @@ PROMPT;
 				__( 'AI-leverandøren returnerte et tomt svar.', 'ai-tidsreise' )
 			);
 		}
+
+		return $text;
+	}
+
+	/**
+	 * Fjern vanlig Markdown-syntaks AI-modellen kan slippe gjennom med,
+	 * til tross for instruksen om ren løpende tekst i systemprompten.
+	 *
+	 * @param string $text Rå tekst fra AI-leverandøren.
+	 */
+	private function strip_markdown( string $text ): string {
+		// Fet/kursiv skrift markert med stjerner eller understreker: **tekst**, *tekst*, __tekst__.
+		$text = preg_replace( '/(\*\*|__)(.+?)\1/s', '$2', $text );
+		$text = preg_replace( '/(?<!\w)([*_])(.+?)\1(?!\w)/s', '$2', $text );
+
+		// Overskrifter markert med #.
+		$text = preg_replace( '/^#{1,6}\s*/m', '', $text );
+
+		// Punktlister markert med - eller *.
+		$text = preg_replace( '/^[*-]\s+/m', '', $text );
 
 		return $text;
 	}
