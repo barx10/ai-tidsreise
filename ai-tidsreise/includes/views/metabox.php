@@ -23,7 +23,7 @@ $status_labels = array(
 <div class="ai-tidsreise-metabox" data-post-id="<?php echo esc_attr( (string) $post->ID ); ?>">
 	<p class="ai-tidsreise-status">
 		<strong><?php esc_html_e( 'Status:', 'ai-tidsreise' ); ?></strong>
-		<span class="ai-tidsreise-status-label">
+		<span class="ai-tidsreise-status-label" id="ai-tidsreise-status-label">
 			<?php echo esc_html( $status_labels[ $status ] ?? $status_labels[ AI_Tidsreise_Post_Meta::STATUS_IKKE_GENERERT ] ); ?>
 		</span>
 	</p>
